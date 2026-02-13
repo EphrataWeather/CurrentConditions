@@ -1,51 +1,104 @@
-    
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Weather Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Navy Liquid Weather</title>
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        :root {
+            --navy-glass: rgba(10, 25, 47, 0.75);
+            --rim-light: rgba(255, 255, 255, 0.3);
+        }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica; overflow: hidden; background: #0a192f; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        
-        .controls {
-            position: absolute; top: 20px; left: 20px; width: 280px;
-            background: rgba(30, 30, 30, 0.9); color: white;
-            padding: 20px; border-radius: 12px; z-index: 10;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+
+        /* Liquid Glass UI Container */
+        .glass-panel {
+            position: absolute; z-index: 10;
+            background: var(--navy-glass);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1.5px solid var(--rim-light);
+            border-radius: 18px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
+
+        /* Top Controls */
+        .top-controls { top: 15px; left: 15px; right: 15px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
         select { 
-            width: 100%; padding: 10px; margin-top: 10px; 
-            background: #444; color: white; border: none; border-radius: 5px; 
+            background: rgba(255,255,255,0.1); border: none; color: white; 
+            padding: 12px; border-radius: 10px; font-size: 16px; outline: none; 
         }
-        .instruction { font-size: 11px; color: #aaa; margin-top: 10px; }
-        .mapboxgl-popup-content { color: #222; font-weight: bold; padding: 15px; }
+
+        /* Picker UI */
+        .picker-toggle { display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 600; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #007aff; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Center Crosshair */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 30px; height: 30px; border: 2px solid #007aff; border-radius: 50%;
+            pointer-events: none; z-index: 5; display: none;
+        }
+        #crosshair::after, #crosshair::before {
+            content: ''; position: absolute; background: #007aff;
+        }
+        #crosshair::after { top: 50%; left: -10px; right: -10px; height: 2px; transform: translateY(-50%); }
+        #crosshair::before { left: 50%; top: -10px; bottom: -10px; width: 2px; transform: translateX(-50%); }
+
+        /* Floating Value Indicator */
+        #center-value {
+            position: absolute; top: calc(50% + 40px); left: 50%; transform: translateX(-50%);
+            background: var(--navy-glass); padding: 8px 15px; border-radius: 20px;
+            font-size: 18px; font-weight: bold; border: 1px solid var(--rim-light);
+            display: none; white-space: nowrap; z-index: 10;
+        }
+
+        /* Legend */
+        .legend { bottom: 30px; left: 50%; transform: translateX(-50%); padding: 10px 20px; font-size: 12px; text-align: center; }
+        .gradient-bar { height: 10px; width: 200px; border-radius: 5px; margin-bottom: 5px; background: linear-gradient(to right, blue, green, yellow, red); }
     </style>
 </head>
 <body>
 
-<div class="controls">
-    <h3 style="margin:0">Weather Layers</h3>
-    <select id="layer-picker" onchange="updateWeatherLayer(this.value)">
-        <option value="rainviewer">Live Rain Radar (RainViewer)</option>
-        <option value="temp_new">Temperature (OWM)</option>
-        <option value="wind_new">Wind Speed (OWM)</option>
-        <option value="clouds_new">Cloud Cover (OWM)</option>
-        <option value="pressure_new">Pressure (OWM)</option>
+<div class="glass-panel top-controls">
+    <select id="layer-picker" onchange="changeLayer(this.value)">
+        <option value="temp_new">Temperature Map</option>
+        <option value="wind_new">Wind Speed</option>
+        <option value="clouds_new">Cloud Cover</option>
+        <option value="pressure_new">Pressure</option>
     </select>
-    <p class="instruction">Double-click / Double-tap any area to get exact weather values.</p>
+    <div class="picker-toggle">
+        <span>Precision Picker Mode</span>
+        <label class="switch">
+            <input type="checkbox" id="picker-switch" onchange="togglePicker(this.checked)">
+            <span class="slider"></span>
+        </label>
+    </div>
+</div>
+
+<div id="crosshair"></div>
+<div id="center-value">--</div>
+
+<div class="glass-panel legend" id="map-legend">
+    <div class="gradient-bar" id="legend-bar"></div>
+    <div id="legend-labels">Cold &larr; &rarr; Hot</div>
 </div>
 
 <div id="map"></div>
 
 <script>
-
     const MAPBOX_TOKEN = 'pk.eyJ1IjoiZ3RnMDExNiIsImEiOiJjbWxsODV6NXAwNThmM2ZwdWlkYm0xNjFlIn0.vI186twXYzY45nnuV5FucQ';
     const OWM_KEY = '5906af06cdd57431ce881975e794e337';
-    
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
     const map = new mapboxgl.Map({
@@ -53,87 +106,76 @@
         style: 'mapbox://styles/mapbox/dark-v11',
         center: [-98, 38],
         zoom: 4,
-        doubleClickZoom: false // Disabled so we can use dblclick for data
+        dragRotate: false
     });
 
-    let currentLayerId = 'rainviewer';
+    const legends = {
+        temp_new: { bar: "linear-gradient(to right, #821692, #208cec, #23dddd, #c2ff28, #ffb000, #ff363b)", label: "-40°F ← → 100°F+" },
+        wind_new: { bar: "linear-gradient(to right, rgba(255,255,255,0), #eec6c6, #b364bc, #3f213b)", label: "Light ← → Severe" },
+        clouds_new: { bar: "linear-gradient(to right, rgba(255,255,255,0), #fdfdff, #f4f4ff)", label: "Clear ← → Overcast" },
+        pressure_new: { bar: "linear-gradient(to right, #0073ff, #4bd0d6, #b0f720, #f0b800, #c60000)", label: "Low ← → High" }
+    };
 
-    map.on('load', async () => {
-        // 1. FIND THE TOP-MOST LABEL LAYER TO KEEP DATA BENEATH IT
+    map.on('load', () => {
+        // Find label layer to go UNDER
         const layers = map.getStyle().layers;
-        let firstLabelId;
-        for (const layer of layers) {
-            if (layer.type === 'symbol' || layer.id.includes('boundary') || layer.id.includes('label')) {
-                firstLabelId = layer.id;
-                break;
-            }
-        }
+        let labelId = layers.find(l => l.id.includes('label') || l.id.includes('admin')).id;
 
-        // 2. GET RAINVIEWER LATEST DATA
-        const rvResponse = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-        const rvData = await rvResponse.json();
-        const latestRadar = rvData.radar.past[rvData.radar.past.length - 1].path;
-
-        // 3. ADD SOURCES
-        map.addSource('weather-source', {
+        map.addSource('owm-source', {
             'type': 'raster',
-            'tiles': [`https://tile.rainviewer.com${latestRadar}/256/{z}/{x}/{y}/2/1_1.png`],
+            'tiles': [`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`],
             'tileSize': 256
         });
 
-        // 4. ADD LAYER BENEATH LABELS
         map.addLayer({
-            'id': 'weather-layer',
+            'id': 'owm-layer',
             'type': 'raster',
-            'source': 'weather-source',
-            'paint': { 'raster-opacity': 0.9 } // High opacity as requested
-        }, firstLabelId);
+            'source': 'owm-source',
+            'paint': { 'raster-opacity': 0.9 }
+        }, labelId);
     });
 
-    async function updateWeatherLayer(val) {
-        let newUrl;
-        if (val === 'rainviewer') {
-            const rvResponse = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-            const rvData = await rvResponse.json();
-            const latestRadar = rvData.radar.past[rvData.radar.past.length - 1].path;
-            newUrl = `https://tile.rainviewer.com${latestRadar}/256/{z}/{x}/{y}/2/1_1.png`;
-        } else {
-            newUrl = `https://tile.openweathermap.org/map/${val}/{z}/{x}/{y}.png?appid=${OWM_KEY}`;
-        }
-        
-        map.getSource('weather-source').setTiles([newUrl]);
+    function changeLayer(val) {
+        map.getSource('owm-source').setTiles([`https://tile.openweathermap.org/map/${val}/{z}/{x}/{y}.png?appid=${OWM_KEY}`]);
+        const l = legends[val];
+        document.getElementById('legend-bar').style.background = l.bar;
+        document.getElementById('legend-labels').innerText = l.label;
     }
 
-    // 5. DOUBLE CLICK PICKER
-    map.on('dblclick', async (e) => {
-        const { lng, lat } = e.lngLat;
-        
-        // Show a temporary "Loading..." popup
-        const popup = new mapboxgl.Popup()
-            .setLngLat([lng, lat])
-            .setHTML("Fetching data...")
-            .addTo(map);
+    let pickerActive = false;
+    function togglePicker(active) {
+        pickerActive = active;
+        document.getElementById('crosshair').style.display = active ? 'block' : 'none';
+        document.getElementById('center-value').style.display = active ? 'block' : 'none';
+        if(active) updateCenterData();
+    }
 
-        try {
-            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=imperial&appid=${OWM_KEY}`;
-            const res = await fetch(url);
-            const data = await res.json();
-
-            const content = `
-                <div style="font-size:14px">
-                    <strong style="font-size:16px">${data.name || 'Current Area'}</strong><br>
-                    🌡️ Temp: ${Math.round(data.main.temp)}°F<br>
-                    💧 Humidity: ${data.main.humidity}%<br>
-                    🌬️ Wind: ${Math.round(data.wind.speed)} mph<br>
-                    ☁️ Clouds: ${data.clouds.all}%
-                </div>
-            `;
-            popup.setHTML(content);
-        } catch (err) {
-            popup.setHTML("Error loading data.");
-        }
+    // Update value when map moves
+    map.on('move', () => {
+        if (pickerActive) updateCenterData();
     });
 
+    async function updateCenterData() {
+        const center = map.getCenter();
+        const valDisplay = document.getElementById('center-value');
+        
+        try {
+            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${center.lat}&lon=${center.lng}&units=imperial&appid=${OWM_KEY}`);
+            const data = await res.json();
+            
+            const activeType = document.getElementById('layer-picker').value;
+            let val = "";
+            if(activeType === 'temp_new') val = `${Math.round(data.main.temp)}°F`;
+            if(activeType === 'wind_new') val = `${Math.round(data.wind.speed)} mph`;
+            if(activeType === 'clouds_new') val = `${data.clouds.all}% Cloud`;
+            if(activeType === 'pressure_new') val = `${data.main.pressure} hPa`;
+
+            valDisplay.innerText = `${data.name || 'Remote'}: ${val}`;
+        } catch(e) {
+            valDisplay.innerText = "Error";
+        }
+    }
 </script>
+
 </body>
 </html>
