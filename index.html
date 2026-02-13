@@ -13,112 +13,111 @@
 
     <style>
         :root {
-            --navy-glass: rgba(8, 18, 38, 0.85);
+            --navy-glass: rgba(8, 18, 38, 0.9);
             --accent: #007aff;
             --rim: rgba(255, 255, 255, 0.15);
         }
         body { margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; background: #050a14; color: white; overflow: hidden; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-        /* Liquid Glass Sidebar */
+        /* Sidebar & Menu State */
         .sidebar {
             position: fixed; top: 0; left: -300px; width: 280px; height: 100%;
-            background: var(--navy-glass); backdrop-filter: blur(30px) saturate(180%);
+            background: var(--navy-glass); backdrop-filter: blur(40px) saturate(180%);
             border-right: 1px solid var(--rim); z-index: 100; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 20px; box-sizing: border-box;
+            padding: 20px; box-sizing: border-box; display: flex; flex-direction: column;
         }
         .sidebar.open { left: 0; }
-        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        
-        /* Layer Buttons */
+
+        .menu-toggle {
+            position: absolute; top: 15px; left: 15px; z-index: 90;
+            padding: 12px; background: var(--navy-glass); border-radius: 50%;
+            border: 1px solid var(--rim); color: white; cursor: pointer; display: flex; align-items: center;
+            transition: opacity 0.3s;
+        }
+        .sidebar.open ~ .menu-toggle { opacity: 0; pointer-events: none; }
+
+        /* Scrollable Sidebar Content */
+        .sidebar-content { flex-grow: 1; overflow-y: auto; padding-right: 5px; }
+        .sidebar-content::-webkit-scrollbar { width: 4px; }
+        .sidebar-content::-webkit-scrollbar-thumb { background: var(--rim); border-radius: 10px; }
+
         .layer-btn {
             width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 14px;
             border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
-            color: #ddd; font-size: 15px; text-align: left; cursor: pointer;
+            color: #ddd; font-size: 14px; text-align: left; cursor: pointer;
             display: flex; align-items: center; gap: 15px; transition: 0.3s;
         }
-        .layer-btn i { width: 18px; height: 18px; }
         .layer-btn.active { background: var(--accent); color: white; border-color: transparent; }
 
-        /* Liquid Toggle Switch */
-        .switch-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; }
-        .switch { position: relative; display: inline-block; width: 46px; height: 26px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { 
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; 
-            background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 34px; border: 1px solid var(--rim);
+        /* History List */
+        .history-item {
+            padding: 10px 15px; background: rgba(255,255,255,0.05); margin-bottom: 8px;
+            border-radius: 10px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 10px;
         }
-        .slider:before { 
-            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; 
-            background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        input:checked + .slider { background-color: var(--accent); }
-        input:checked + .slider:before { transform: translateX(20px); }
+        .history-item:hover { background: rgba(255,255,255,0.1); }
 
-        /* UI Elements */
-        .menu-toggle {
-            position: absolute; top: 15px; left: 15px; z-index: 101;
-            padding: 12px; background: var(--navy-glass); border-radius: 50%;
-            border: 1px solid var(--rim); color: white; cursor: pointer; display: flex; align-items: center;
-        }
-        #crosshair {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 40px; height: 40px; pointer-events: none; z-index: 5; display: none;
-            border: 2px dashed var(--accent); border-radius: 50%;
-        }
-        #center-value {
-            position: absolute; top: calc(50% + 55px); left: 50%; transform: translateX(-50%);
-            background: var(--navy-glass); padding: 12px 24px; border-radius: 30px;
-            font-size: 17px; font-weight: 600; border: 1px solid var(--rim); display: none; z-index: 10;
-        }
+        /* Toggles */
+        .switch-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; font-size: 13px; }
+        .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 34px; border: 1px solid var(--rim); }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        /* Center Picker UI */
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 32px; height: 32px; pointer-events: none; z-index: 5; display: none; border: 2.5px solid var(--accent); border-radius: 50%; }
+        #center-value { position: absolute; top: calc(50% + 55px); left: 50%; transform: translateX(-50%); background: var(--navy-glass); padding: 12px 24px; border-radius: 30px; font-size: 17px; font-weight: 600; border: 1px solid var(--rim); display: none; z-index: 10; white-space: nowrap; }
 
         /* Legend */
-        .legend {
-            position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%);
-            padding: 15px 25px; min-width: 260px; z-index: 10;
-            background: var(--navy-glass); backdrop-filter: blur(20px);
-            border-radius: 24px; border: 1px solid var(--rim);
-        }
-        .grad-bar { height: 10px; border-radius: 5px; margin: 10px 0; }
-        .legend-vals { display: flex; justify-content: space-between; font-size: 11px; color: #bbb; font-family: 'Monaco', monospace; }
+        .legend { position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); padding: 15px; min-width: 250px; z-index: 10; background: var(--navy-glass); border-radius: 20px; border: 1px solid var(--rim); }
+        .grad-bar { height: 10px; border-radius: 5px; margin: 8px 0; }
+        .legend-vals { display: flex; justify-content: space-between; font-size: 10px; color: #bbb; font-family: monospace; }
         
-        .mapboxgl-ctrl-geocoder { background: var(--navy-glass) !important; backdrop-filter: blur(10px) !important; border: 1px solid var(--rim) !important; border-radius: 12px !important; }
+        /* Mapbox Tweaks */
+        .mapboxgl-ctrl-geocoder { background: var(--navy-glass) !important; border: 1px solid var(--rim) !important; border-radius: 14px !important; }
         .mapboxgl-ctrl-geocoder--input { color: white !important; }
     </style>
 </head>
 <body>
 
-<button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
-    <i data-lucide="menu"></i>
-</button>
-
 <div class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <h2 style="margin:0; font-size: 1.1rem; letter-spacing: 0.5px;">WEATHER PRO</h2>
-        <i data-lucide="x" style="cursor:pointer" onclick="document.getElementById('sidebar').classList.remove('open')"></i>
+    <div class="sidebar-header" style="display:flex; justify-content: space-between; margin-bottom: 25px;">
+        <h2 style="margin:0; font-size: 1rem; letter-spacing: 1px;">METEO GLASS</h2>
+        <i data-lucide="chevron-left" style="cursor:pointer" onclick="document.getElementById('sidebar').classList.remove('open')"></i>
     </div>
 
-    <button class="layer-btn active" onclick="setLayer('temp_new', this)"><i data-lucide="thermometer"></i> Temperature</button>
-    <button class="layer-btn" onclick="setLayer('wind_new', this)"><i data-lucide="wind"></i> Wind Speed</button>
-    <button class="layer-btn" onclick="setLayer('clouds_new', this)"><i data-lucide="cloud"></i> Clouds</button>
-    <button class="layer-btn" onclick="setLayer('pressure_new', this)"><i data-lucide="gauge"></i> Pressure</button>
+    <div class="sidebar-content">
+        <button class="layer-btn active" onclick="setLayer('temp_new', this)"><i data-lucide="thermometer"></i> Temperature</button>
+        <button class="layer-btn" onclick="setLayer('wind_new', this)"><i data-lucide="wind"></i> Wind Speed</button>
+        <button class="layer-btn" onclick="setLayer('clouds_new', this)"><i data-lucide="cloud"></i> Cloud Coverage</button>
+        <button class="layer-btn" onclick="setLayer('pressure_new', this)"><i data-lucide="gauge"></i> Pressure</button>
 
-    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 25px 0;">
+        <div style="margin: 25px 0 10px; font-size: 11px; text-transform: uppercase; color: #777; font-weight: bold;">Settings</div>
+        <div class="switch-row">
+            <span>Picker Mode</span>
+            <label class="switch"><input type="checkbox" onchange="togglePicker(this.checked)"><span class="slider"></span></label>
+        </div>
+        <div class="switch-row">
+            <span>Location Dot</span>
+            <label class="switch"><input type="checkbox" checked onchange="toggleLocationDot(this.checked)"><span class="slider"></span></label>
+        </div>
 
-    <div class="switch-row">
-        <span style="display:flex; align-items:center; gap:10px;"><i data-lucide="target" style="width:18px"></i> Precision Picker</span>
-        <label class="switch">
-            <input type="checkbox" onchange="togglePicker(this.checked)">
-            <span class="slider"></span>
-        </label>
+        <div style="margin: 25px 0 10px; font-size: 11px; text-transform: uppercase; color: #777; font-weight: bold;">Recent Searches</div>
+        <div id="history-list"></div>
     </div>
 </div>
 
+<button class="menu-toggle" onclick="document.getElementById('sidebar').classList.add('open')">
+    <i data-lucide="menu"></i>
+</button>
+
 <div id="crosshair"></div>
-<div id="center-value">Scanning...</div>
+<div id="center-value">Locating...</div>
 
 <div class="legend">
-    <div id="legend-title" style="font-size: 13px; font-weight:700; text-transform: uppercase; opacity: 0.8;">Temperature</div>
+    <div id="legend-title" style="font-size: 12px; font-weight:700; text-transform: uppercase; opacity: 0.7; margin-bottom: 5px;">Temperature</div>
     <div class="grad-bar" id="legend-bar"></div>
     <div class="legend-vals" id="legend-vals"></div>
 </div>
@@ -130,12 +129,9 @@
     const OWM_KEY = '5906af06cdd57431ce881975e794e337';
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/dark-v11',
-        center: [-98, 38], // Default center
-        zoom: 3
-    });
+    const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [-98, 38], zoom: 3 });
+    const geolocate = new mapboxgl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showUserLocation: true });
+    const geocoder = new MapboxGeocoder({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: true });
 
     const meta = {
         temp_new: { title: "Temperature", bar: "linear-gradient(to right, #821692, #208cec, #23dddd, #c2ff28, #ffb000, #ff363b)", vals: ["-40°F", "32°F", "70°F", "100°F"] },
@@ -148,35 +144,40 @@
         lucide.createIcons();
         const labelId = map.getStyle().layers.find(l => l.id.includes('label') || l.id.includes('admin')).id;
 
-        map.addSource('owm-source', {
-            'type': 'raster',
-            'tiles': [`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`],
-            'tileSize': 256
-        });
-
+        map.addSource('owm-source', { 'type': 'raster', 'tiles': [`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`], 'tileSize': 256 });
         map.addLayer({ 'id': 'owm-layer', 'type': 'raster', 'source': 'owm-source', 'paint': { 'raster-opacity': 0.85 } }, labelId);
         
-        map.addControl(new MapboxGeocoder({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: true }), 'top-right');
+        map.addControl(geolocate);
+        map.addControl(geocoder, 'top-right');
         
-        // --- AUTO LOCATION LOGIC ---
+        geocoder.on('result', (e) => {
+            saveToHistory(e.result.place_name, e.result.center);
+        });
+
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
-                map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 9, speed: 1.5 });
-            }, err => console.log("User denied location or error occurred. Staying zoomed out."));
+                map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 8 });
+                geolocate.trigger();
+            });
         }
-
         setLayer('temp_new');
+        loadHistory();
     });
 
     function setLayer(id, el) {
         map.getSource('owm-source').setTiles([`https://tile.openweathermap.org/map/${id}/{z}/{x}/{y}.png?appid=${OWM_KEY}`]);
         document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
         if(el) el.classList.add('active');
-
         const m = meta[id];
         document.getElementById('legend-title').innerText = m.title;
         document.getElementById('legend-bar').style.background = m.bar;
         document.getElementById('legend-vals').innerHTML = m.vals.map(v => `<span>${v}</span>`).join('');
+        if(pickerActive) updateCenterData();
+    }
+
+    function toggleLocationDot(show) {
+        const dot = document.querySelector('.mapboxgl-user-location-dot');
+        if(dot) dot.style.display = show ? 'block' : 'none';
     }
 
     let pickerActive = false;
@@ -191,17 +192,41 @@
 
     async function updateCenterData() {
         const c = map.getCenter();
-        const activeBtn = document.querySelector('.layer-btn.active').innerText.trim().toLowerCase();
+        const activeBtn = document.querySelector('.layer-btn.active');
+        const layerText = activeBtn ? activeBtn.innerText.toLowerCase() : 'temperature';
         
         try {
             const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${c.lat}&lon=${c.lng}&units=imperial&appid=${OWM_KEY}`);
             const d = await res.json();
-            let label = d.name || 'Remote';
-            let val = activeBtn.includes('temp') ? `${Math.round(d.main.temp)}°F` : 
-                      activeBtn.includes('wind') ? `${Math.round(d.wind.speed)} mph` :
-                      activeBtn.includes('cloud') ? `${d.clouds.all}%` : `${d.main.pressure} hPa`;
+            let label = d.name || 'Remote Area';
+            let val = layerText.includes('temp') ? `${Math.round(d.main.temp)}°F` : 
+                      layerText.includes('wind') ? `${Math.round(d.wind.speed)} mph` :
+                      layerText.includes('cloud') ? `${d.clouds.all}%` : `${d.main.pressure} hPa`;
             document.getElementById('center-value').innerText = `${label}: ${val}`;
-        } catch(e) { document.getElementById('center-value').innerText = "Updating..."; }
+        } catch(e) { document.getElementById('center-value').innerText = "Scanning..."; }
+    }
+
+    function saveToHistory(name, coords) {
+        let history = JSON.parse(localStorage.getItem('weather_history') || '[]');
+        history = history.filter(h => h.name !== name); // No duplicates
+        history.unshift({ name, coords });
+        if(history.length > 5) history.pop(); // Keep top 5
+        localStorage.setItem('weather_history', JSON.stringify(history));
+        loadHistory();
+    }
+
+    function loadHistory() {
+        const list = document.getElementById('history-list');
+        const history = JSON.parse(localStorage.getItem('weather_history') || '[]');
+        list.innerHTML = history.length ? '' : '<div style="font-size:12px; color:#555;">No recent searches</div>';
+        history.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.innerHTML = `<i data-lucide="history" style="width:14px"></i> <span>${item.name.split(',')[0]}</span>`;
+            div.onclick = () => { map.flyTo({ center: item.coords, zoom: 10 }); };
+            list.appendChild(div);
+        });
+        lucide.createIcons();
     }
 </script>
 </body>
