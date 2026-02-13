@@ -3,95 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Navy Liquid Weather</title>
+    <title>Liquid Glass Weather Pro</title>
+    
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+
     <style>
         :root {
-            --navy-glass: rgba(10, 25, 47, 0.75);
-            --rim-light: rgba(255, 255, 255, 0.3);
+            --navy-glass: rgba(8, 18, 38, 0.82);
+            --accent: #00a2ff;
+            --rim: rgba(255, 255, 255, 0.15);
         }
-        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica; overflow: hidden; background: #0a192f; }
+        body { margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; background: #050a14; color: white; overflow: hidden; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-        /* Liquid Glass UI Container */
-        .glass-panel {
-            position: absolute; z-index: 10;
-            background: var(--navy-glass);
-            backdrop-filter: blur(20px) saturate(160%);
-            -webkit-backdrop-filter: blur(20px) saturate(160%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-top: 1.5px solid var(--rim-light);
-            border-radius: 18px;
-            color: white;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        /* Liquid Glass Sidebar */
+        .sidebar {
+            position: fixed; top: 0; left: -300px; width: 280px; height: 100%;
+            background: var(--navy-glass); backdrop-filter: blur(25px) saturate(180%);
+            border-right: 1px solid var(--rim); z-index: 100; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 20px; box-sizing: border-box;
+        }
+        .sidebar.open { left: 0; }
+
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        
+        /* Sidebar Buttons */
+        .layer-btn {
+            width: 100%; padding: 15px; margin-bottom: 10px; border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.05);
+            color: #ccc; font-size: 15px; text-align: left; cursor: pointer;
+            display: flex; align-items: center; gap: 12px; transition: 0.2s;
+        }
+        .layer-btn.active { background: var(--accent); color: white; box-shadow: 0 0 15px rgba(0,162,255,0.4); }
+        .layer-btn:hover { background: rgba(255,255,255,0.1); }
+
+        /* Floating UI Elements */
+        .menu-toggle {
+            position: absolute; top: 15px; left: 15px; z-index: 101;
+            padding: 12px; background: var(--navy-glass); border-radius: 50%;
+            border: 1px solid var(--rim); color: white; cursor: pointer; font-size: 20px;
         }
 
-        /* Top Controls */
-        .top-controls { top: 15px; left: 15px; right: 15px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        select { 
-            background: rgba(255,255,255,0.1); border: none; color: white; 
-            padding: 12px; border-radius: 10px; font-size: 16px; outline: none; 
-        }
-
-        /* Picker UI */
-        .picker-toggle { display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 600; }
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #007aff; }
-        input:checked + .slider:before { transform: translateX(20px); }
-
-        /* Center Crosshair */
+        /* Center Picker Indicator */
         #crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 30px; height: 30px; border: 2px solid #007aff; border-radius: 50%;
-            pointer-events: none; z-index: 5; display: none;
+            width: 40px; height: 40px; pointer-events: none; z-index: 5; display: none;
         }
-        #crosshair::after, #crosshair::before {
-            content: ''; position: absolute; background: #007aff;
-        }
-        #crosshair::after { top: 50%; left: -10px; right: -10px; height: 2px; transform: translateY(-50%); }
-        #crosshair::before { left: 50%; top: -10px; bottom: -10px; width: 2px; transform: translateX(-50%); }
+        #crosshair::after { content: '+'; font-size: 30px; color: var(--accent); position: absolute; left: 10px; top: -5px; }
 
-        /* Floating Value Indicator */
         #center-value {
-            position: absolute; top: calc(50% + 40px); left: 50%; transform: translateX(-50%);
-            background: var(--navy-glass); padding: 8px 15px; border-radius: 20px;
-            font-size: 18px; font-weight: bold; border: 1px solid var(--rim-light);
-            display: none; white-space: nowrap; z-index: 10;
+            position: absolute; top: calc(50% + 50px); left: 50%; transform: translateX(-50%);
+            background: var(--navy-glass); padding: 10px 20px; border-radius: 30px;
+            font-size: 18px; font-weight: bold; border: 1px solid var(--rim);
+            display: none; z-index: 10;
         }
 
-        /* Legend */
-        .legend { bottom: 30px; left: 50%; transform: translateX(-50%); padding: 10px 20px; font-size: 12px; text-align: center; }
-        .gradient-bar { height: 10px; width: 200px; border-radius: 5px; margin-bottom: 5px; background: linear-gradient(to right, blue, green, yellow, red); }
+        /* Legend with Exact Values */
+        .legend {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            padding: 12px 20px; min-width: 250px; z-index: 10;
+            background: var(--navy-glass); backdrop-filter: blur(15px);
+            border-radius: 20px; border: 1px solid var(--rim); text-align: center;
+        }
+        .grad-bar { height: 12px; border-radius: 6px; margin: 8px 0; border: 1px solid rgba(0,0,0,0.2); }
+        .legend-vals { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; font-family: monospace; }
+
+        /* Mobile specific adjustments */
+        .mapboxgl-ctrl-geocoder { min-width: 200px !important; margin: 15px 15px 0 0 !important; border-radius: 12px !important; border: 1px solid var(--rim) !important; background: var(--navy-glass) !important; color: white !important; }
+        .mapboxgl-ctrl-geocoder--input { color: white !important; }
     </style>
 </head>
 <body>
 
-<div class="glass-panel top-controls">
-    <select id="layer-picker" onchange="changeLayer(this.value)">
-        <option value="temp_new">Temperature Map</option>
-        <option value="wind_new">Wind Speed</option>
-        <option value="clouds_new">Cloud Cover</option>
-        <option value="pressure_new">Pressure</option>
-    </select>
-    <div class="picker-toggle">
-        <span>Precision Picker Mode</span>
-        <label class="switch">
-            <input type="checkbox" id="picker-switch" onchange="togglePicker(this.checked)">
-            <span class="slider"></span>
-        </label>
+<button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h2 style="margin:0; font-size: 1.2rem;">🌡️ Weather Layers</h2>
+        <span style="cursor:pointer" onclick="document.getElementById('sidebar').classList.remove('open')">✕</span>
+    </div>
+
+    <button class="layer-btn active" onclick="setLayer('temp_new', this)"><span>🌡️</span> Temperature</button>
+    <button class="layer-btn" onclick="setLayer('wind_new', this)"><span>🌬️</span> Wind Speed</button>
+    <button class="layer-btn" onclick="setLayer('clouds_new', this)"><span>☁️</span> Cloud Cover</button>
+    <button class="layer-btn" onclick="setLayer('pressure_new', this)"><span>🌀</span> Pressure</button>
+
+    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 25px 0;">
+
+    <div style="display:flex; justify-content: space-between; align-items: center;">
+        <span>🎯 Precision Picker</span>
+        <input type="checkbox" onchange="togglePicker(this.checked)" style="width:20px; height:20px;">
     </div>
 </div>
 
 <div id="crosshair"></div>
 <div id="center-value">--</div>
 
-<div class="glass-panel legend" id="map-legend">
-    <div class="gradient-bar" id="legend-bar"></div>
-    <div id="legend-labels">Cold &larr; &rarr; Hot</div>
+<div class="legend">
+    <div id="legend-title" style="font-size: 13px; font-weight:600; margin-bottom: 4px;">Temperature (°F)</div>
+    <div class="grad-bar" id="legend-bar"></div>
+    <div class="legend-vals" id="legend-vals">
+        <span>-40°</span><span>32°</span><span>70°</span><span>100°+</span>
+    </div>
 </div>
 
 <div id="map"></div>
@@ -105,21 +121,20 @@
         container: 'map',
         style: 'mapbox://styles/mapbox/dark-v11',
         center: [-98, 38],
-        zoom: 4,
-        dragRotate: false
+        zoom: 4
     });
 
-    const legends = {
-        temp_new: { bar: "linear-gradient(to right, #821692, #208cec, #23dddd, #c2ff28, #ffb000, #ff363b)", label: "-40°F ← → 100°F+" },
-        wind_new: { bar: "linear-gradient(to right, rgba(255,255,255,0), #eec6c6, #b364bc, #3f213b)", label: "Light ← → Severe" },
-        clouds_new: { bar: "linear-gradient(to right, rgba(255,255,255,0), #fdfdff, #f4f4ff)", label: "Clear ← → Overcast" },
-        pressure_new: { bar: "linear-gradient(to right, #0073ff, #4bd0d6, #b0f720, #f0b800, #c60000)", label: "Low ← → High" }
+    // Layer metadata for legend
+    const meta = {
+        temp_new: { title: "Temperature", bar: "linear-gradient(to right, #821692, #208cec, #23dddd, #c2ff28, #ffb000, #ff363b)", vals: ["-40°F", "32°F", "70°F", "100°F"] },
+        wind_new: { title: "Wind Speed", bar: "linear-gradient(to right, rgba(255,255,255,0), #eec6c6, #b364bc, #3f213b)", vals: ["0mph", "15mph", "35mph", "70mph+"] },
+        clouds_new: { title: "Cloud Cover", bar: "linear-gradient(to right, #ffffff00, #ffffffaa, #ffffff)", vals: ["0%", "30%", "60%", "100%"] },
+        pressure_new: { title: "Sea Level Pressure", bar: "linear-gradient(to right, #0073ff, #4bd0d6, #b0f720, #f0b800, #c60000)", vals: ["940hPa", "1000hPa", "1013hPa", "1080hPa"] }
     };
 
     map.on('load', () => {
-        // Find label layer to go UNDER
-        const layers = map.getStyle().layers;
-        let labelId = layers.find(l => l.id.includes('label') || l.id.includes('admin')).id;
+        // Labels & Borders Priority
+        const labelLayer = map.getStyle().layers.find(l => l.id.includes('label') || l.id.includes('admin')).id;
 
         map.addSource('owm-source', {
             'type': 'raster',
@@ -128,54 +143,57 @@
         });
 
         map.addLayer({
-            'id': 'owm-layer',
-            'type': 'raster',
-            'source': 'owm-source',
-            'paint': { 'raster-opacity': 0.9 }
-        }, labelId);
+            'id': 'owm-layer', 'type': 'raster', 'source': 'owm-source', 'paint': { 'raster-opacity': 0.85 }
+        }, labelLayer);
+
+        // Add Search & GPS
+        map.addControl(new MapboxGeocoder({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: true }), 'top-right');
+        map.addControl(new mapboxgl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right');
+        
+        setLayer('temp_new'); // Init legend
     });
 
-    function changeLayer(val) {
-        map.getSource('owm-source').setTiles([`https://tile.openweathermap.org/map/${val}/{z}/{x}/{y}.png?appid=${OWM_KEY}`]);
-        const l = legends[val];
-        document.getElementById('legend-bar').style.background = l.bar;
-        document.getElementById('legend-labels').innerText = l.label;
+    function setLayer(id, el) {
+        map.getSource('owm-source').setTiles([`https://tile.openweathermap.org/map/${id}/{z}/{x}/{y}.png?appid=${OWM_KEY}`]);
+        
+        // Update Sidebar UI
+        document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+        if(el) el.classList.add('active');
+
+        // Update Legend
+        const m = meta[id];
+        document.getElementById('legend-title').innerText = m.title;
+        document.getElementById('legend-bar').style.background = m.bar;
+        document.getElementById('legend-vals').innerHTML = m.vals.map(v => `<span>${v}</span>`).join('');
     }
 
     let pickerActive = false;
-    function togglePicker(active) {
-        pickerActive = active;
-        document.getElementById('crosshair').style.display = active ? 'block' : 'none';
-        document.getElementById('center-value').style.display = active ? 'block' : 'none';
-        if(active) updateCenterData();
+    function togglePicker(on) {
+        pickerActive = on;
+        document.getElementById('crosshair').style.display = on ? 'block' : 'none';
+        document.getElementById('center-value').style.display = on ? 'block' : 'none';
+        if(on) updateCenterData();
     }
 
-    // Update value when map moves
-    map.on('move', () => {
-        if (pickerActive) updateCenterData();
-    });
+    map.on('move', () => { if(pickerActive) updateCenterData(); });
 
     async function updateCenterData() {
-        const center = map.getCenter();
-        const valDisplay = document.getElementById('center-value');
+        const c = map.getCenter();
+        const activeLayer = document.querySelector('.layer-btn.active').innerText.split(' ').pop().toLowerCase();
         
         try {
-            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${center.lat}&lon=${center.lng}&units=imperial&appid=${OWM_KEY}`);
-            const data = await res.json();
+            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${c.lat}&lon=${c.lng}&units=imperial&appid=${OWM_KEY}`);
+            const d = await res.json();
+            let display = `${d.name || 'Remote'}: `;
             
-            const activeType = document.getElementById('layer-picker').value;
-            let val = "";
-            if(activeType === 'temp_new') val = `${Math.round(data.main.temp)}°F`;
-            if(activeType === 'wind_new') val = `${Math.round(data.wind.speed)} mph`;
-            if(activeType === 'clouds_new') val = `${data.clouds.all}% Cloud`;
-            if(activeType === 'pressure_new') val = `${data.main.pressure} hPa`;
+            if (activeLayer.includes('temp')) display += `${Math.round(d.main.temp)}°F`;
+            else if (activeLayer.includes('wind')) display += `${Math.round(d.wind.speed)} mph`;
+            else if (activeLayer.includes('cloud')) display += `${d.clouds.all}%`;
+            else display += `${d.main.pressure} hPa`;
 
-            valDisplay.innerText = `${data.name || 'Remote'}: ${val}`;
-        } catch(e) {
-            valDisplay.innerText = "Error";
-        }
+            document.getElementById('center-value').innerText = display;
+        } catch(e) { document.getElementById('center-value').innerText = "Updating..."; }
     }
 </script>
-
 </body>
 </html>
