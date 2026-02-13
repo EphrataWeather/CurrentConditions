@@ -3,73 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OWM + Mapbox Weather Viewer</title>
+    <title>Dynamic Weather Map</title>
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* UI Overlay */
-        .weather-panel {
+        /* Control Panel */
+        .controls {
             position: absolute;
             top: 20px;
             left: 20px;
-            width: 260px;
+            width: 280px;
             background: rgba(255, 255, 255, 0.95);
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.3);
             z-index: 1;
-            transition: opacity 0.3s ease;
         }
-        .weather-panel h2 { margin: 0 0 15px 0; font-size: 20px; color: #222; border-bottom: 2px solid #eee; padding-bottom: 5px; }
-        .data-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; transition: opacity 0.2s; }
+
+        .layer-selector { margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px; }
+        .layer-selector label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 13px; color: #444; }
+        select { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; cursor: pointer; }
+
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; }
         .data-label { font-weight: 600; color: #555; }
         .data-value { color: #000; font-family: monospace; font-size: 16px; }
-        
-        /* Loading Spinner Styling */
-        .spinner {
-            display: none; /* Hidden by default */
-            width: 24px;
-            height: 24px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 10px auto;
-        }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading .data-row { opacity: 0.3; } /* Dims data while loading */
+        /* Spinner */
+        .spinner { display: none; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 10px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .loading .spinner { display: block; }
-
-        .legend { font-size: 11px; color: #777; margin-top: 15px; font-style: italic; }
+        .loading .data-row { opacity: 0.3; }
     </style>
 </head>
 <body>
 
-<div class="weather-panel" id="weather-panel">
-    <h2 id="city-name">Weather Data</h2>
+<div class="controls" id="weather-panel">
+    <h2 id="city-name" style="margin:0 0 10px 0; font-size: 18px;">Click Map for Data</h2>
     
     <div id="loader" class="spinner"></div>
 
     <div class="data-row"><span class="data-label">Temp:</span> <span id="temp" class="data-value">--</span></div>
-    <div class="data-row"><span class="data-label">Feels Like:</span> <span id="feels-like" class="data-value">--</span></div>
     <div class="data-row"><span class="data-label">Wind:</span> <span id="wind" class="data-value">--</span></div>
-    <div class="data-row"><span class="data-label">Gusts:</span> <span id="gusts" class="data-value">--</span></div>
+    <div class="data-row"><span class="data-label">Apparent:</span> <span id="feels-like" class="data-value">--</span></div>
     
-    <div class="legend">Click anywhere on the map to update.</div>
+    <div class="layer-selector">
+        <label for="weather-layer">Map Overlay:</label>
+        <select id="weather-layer" onchange="changeLayer(this.value)">
+            <option value="precipitation_new">Rain Radar</option>
+            <option value="temp_new">Temperature Map</option>
+            <option value="wind_new">Wind Speed</option>
+            <option value="pressure_new">Sea Level Pressure</option>
+            <option value="clouds_new">Cloud Cover</option>
+        </select>
+    </div>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // --- CONFIGURATION ---
     const MAPBOX_TOKEN = 'pk.eyJ1IjoiZ3RnMDExNiIsImEiOiJjbWxsODV6NXAwNThmM2ZwdWlkYm0xNjFlIn0.vI186twXYzY45nnuV5FucQ';
     const OWM_KEY = '5906af06cdd57431ce881975e794e337';
     
@@ -83,54 +77,49 @@
     });
 
     map.on('load', () => {
-        // RADAR LAYER
-        map.addSource('owm-radar', {
+        // Initial Layer (Precipitation)
+        map.addSource('owm-source', {
             'type': 'raster',
             'tiles': [`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`],
             'tileSize': 256
         });
 
         map.addLayer({
-            'id': 'radar-layer',
+            'id': 'owm-layer',
             'type': 'raster',
-            'source': 'owm-radar',
+            'source': 'owm-source',
             'paint': { 'raster-opacity': 0.7 }
         });
-
-        fetchWeatherData(38, -98);
     });
 
-    async function fetchWeatherData(lat, lon) {
-        const panel = document.getElementById('weather-panel');
-        panel.classList.add('loading'); // Show spinner and dim text
-
-        try {
-            // Using 2.5 API for better compatibility with free keys
-            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${OWM_KEY}`;
-            const response = await fetch(url);
-            
-            if (!response.ok) throw new Error("API Unauthorized or Limit Reached");
-
-            const data = await response.json();
-            updateUI(data);
-        } catch (err) {
-            console.error("OWM Error:", err);
-            document.getElementById('city-name').innerText = "Error Loading";
-        } finally {
-            panel.classList.remove('loading'); // Hide spinner
+    // logic to swap tiles
+    function changeLayer(layerName) {
+        const source = map.getSource('owm-source');
+        if (source) {
+            const newTileUrl = `https://tile.openweathermap.org/map/${layerName}/{z}/{x}/{y}.png?appid=${OWM_KEY}`;
+            source.setTiles([newTileUrl]);
         }
     }
 
-    function updateUI(data) {
-        document.getElementById('temp').innerText = `${Math.round(data.main.temp)}°F`;
-        document.getElementById('feels-like').innerText = `${Math.round(data.main.feels_like)}°F`;
-        document.getElementById('wind').innerText = `${Math.round(data.wind.speed)} mph`;
-        document.getElementById('gusts').innerText = data.wind.gust ? `${Math.round(data.wind.gust)} mph` : 'None';
-        document.getElementById('city-name').innerText = data.name || "Selected Area";
-    }
-
-    map.on('click', (e) => {
-        fetchWeatherData(e.lngLat.lat, e.lngLat.lng);
+    // fetch data on click
+    map.on('click', async (e) => {
+        const panel = document.getElementById('weather-panel');
+        panel.classList.add('loading');
+        
+        try {
+            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${e.lngLat.lat}&lon=${e.lngLat.lng}&units=imperial&appid=${OWM_KEY}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            document.getElementById('temp').innerText = `${Math.round(data.main.temp)}°F`;
+            document.getElementById('wind').innerText = `${Math.round(data.wind.speed)} mph`;
+            document.getElementById('feels-like').innerText = `${Math.round(data.main.feels_like)}°F`;
+            document.getElementById('city-name').innerText = data.name || "Selected Area";
+        } catch (err) {
+            console.error(err);
+        } finally {
+            panel.classList.remove('loading');
+        }
     });
 </script>
 </body>
