@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Liquid Glass Weather Pro</title>
+    <title>Navy Liquid Glass Pro</title>
     
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
     <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
         :root {
-            --navy-glass: rgba(8, 18, 38, 0.82);
-            --accent: #00a2ff;
+            --navy-glass: rgba(8, 18, 38, 0.85);
+            --accent: #007aff;
             --rim: rgba(255, 255, 255, 0.15);
         }
         body { margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; background: #050a14; color: white; overflow: hidden; }
@@ -22,92 +23,104 @@
         /* Liquid Glass Sidebar */
         .sidebar {
             position: fixed; top: 0; left: -300px; width: 280px; height: 100%;
-            background: var(--navy-glass); backdrop-filter: blur(25px) saturate(180%);
+            background: var(--navy-glass); backdrop-filter: blur(30px) saturate(180%);
             border-right: 1px solid var(--rim); z-index: 100; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 20px; box-sizing: border-box;
         }
         .sidebar.open { left: 0; }
-
         .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
         
-        /* Sidebar Buttons */
+        /* Layer Buttons */
         .layer-btn {
-            width: 100%; padding: 15px; margin-bottom: 10px; border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.05);
-            color: #ccc; font-size: 15px; text-align: left; cursor: pointer;
-            display: flex; align-items: center; gap: 12px; transition: 0.2s;
+            width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
+            color: #ddd; font-size: 15px; text-align: left; cursor: pointer;
+            display: flex; align-items: center; gap: 15px; transition: 0.3s;
         }
-        .layer-btn.active { background: var(--accent); color: white; box-shadow: 0 0 15px rgba(0,162,255,0.4); }
-        .layer-btn:hover { background: rgba(255,255,255,0.1); }
+        .layer-btn i { width: 18px; height: 18px; }
+        .layer-btn.active { background: var(--accent); color: white; border-color: transparent; }
 
-        /* Floating UI Elements */
+        /* Liquid Toggle Switch */
+        .switch-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; }
+        .switch { position: relative; display: inline-block; width: 46px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { 
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; 
+            background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 34px; border: 1px solid var(--rim);
+        }
+        .slider:before { 
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; 
+            background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* UI Elements */
         .menu-toggle {
             position: absolute; top: 15px; left: 15px; z-index: 101;
             padding: 12px; background: var(--navy-glass); border-radius: 50%;
-            border: 1px solid var(--rim); color: white; cursor: pointer; font-size: 20px;
+            border: 1px solid var(--rim); color: white; cursor: pointer; display: flex; align-items: center;
         }
-
-        /* Center Picker Indicator */
         #crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 40px; height: 40px; pointer-events: none; z-index: 5; display: none;
+            border: 2px dashed var(--accent); border-radius: 50%;
         }
-        #crosshair::after { content: '+'; font-size: 30px; color: var(--accent); position: absolute; left: 10px; top: -5px; }
-
         #center-value {
-            position: absolute; top: calc(50% + 50px); left: 50%; transform: translateX(-50%);
-            background: var(--navy-glass); padding: 10px 20px; border-radius: 30px;
-            font-size: 18px; font-weight: bold; border: 1px solid var(--rim);
-            display: none; z-index: 10;
+            position: absolute; top: calc(50% + 55px); left: 50%; transform: translateX(-50%);
+            background: var(--navy-glass); padding: 12px 24px; border-radius: 30px;
+            font-size: 17px; font-weight: 600; border: 1px solid var(--rim); display: none; z-index: 10;
         }
 
-        /* Legend with Exact Values */
+        /* Legend */
         .legend {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            padding: 12px 20px; min-width: 250px; z-index: 10;
-            background: var(--navy-glass); backdrop-filter: blur(15px);
-            border-radius: 20px; border: 1px solid var(--rim); text-align: center;
+            position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%);
+            padding: 15px 25px; min-width: 260px; z-index: 10;
+            background: var(--navy-glass); backdrop-filter: blur(20px);
+            border-radius: 24px; border: 1px solid var(--rim);
         }
-        .grad-bar { height: 12px; border-radius: 6px; margin: 8px 0; border: 1px solid rgba(0,0,0,0.2); }
-        .legend-vals { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; font-family: monospace; }
-
-        /* Mobile specific adjustments */
-        .mapboxgl-ctrl-geocoder { min-width: 200px !important; margin: 15px 15px 0 0 !important; border-radius: 12px !important; border: 1px solid var(--rim) !important; background: var(--navy-glass) !important; color: white !important; }
+        .grad-bar { height: 10px; border-radius: 5px; margin: 10px 0; }
+        .legend-vals { display: flex; justify-content: space-between; font-size: 11px; color: #bbb; font-family: 'Monaco', monospace; }
+        
+        .mapboxgl-ctrl-geocoder { background: var(--navy-glass) !important; backdrop-filter: blur(10px) !important; border: 1px solid var(--rim) !important; border-radius: 12px !important; }
         .mapboxgl-ctrl-geocoder--input { color: white !important; }
     </style>
 </head>
 <body>
 
-<button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+<button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+    <i data-lucide="menu"></i>
+</button>
 
 <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-        <h2 style="margin:0; font-size: 1.2rem;">🌡️ Weather Layers</h2>
-        <span style="cursor:pointer" onclick="document.getElementById('sidebar').classList.remove('open')">✕</span>
+        <h2 style="margin:0; font-size: 1.1rem; letter-spacing: 0.5px;">WEATHER PRO</h2>
+        <i data-lucide="x" style="cursor:pointer" onclick="document.getElementById('sidebar').classList.remove('open')"></i>
     </div>
 
-    <button class="layer-btn active" onclick="setLayer('temp_new', this)"><span>🌡️</span> Temperature</button>
-    <button class="layer-btn" onclick="setLayer('wind_new', this)"><span>🌬️</span> Wind Speed</button>
-    <button class="layer-btn" onclick="setLayer('clouds_new', this)"><span>☁️</span> Cloud Cover</button>
-    <button class="layer-btn" onclick="setLayer('pressure_new', this)"><span>🌀</span> Pressure</button>
+    <button class="layer-btn active" onclick="setLayer('temp_new', this)"><i data-lucide="thermometer"></i> Temperature</button>
+    <button class="layer-btn" onclick="setLayer('wind_new', this)"><i data-lucide="wind"></i> Wind Speed</button>
+    <button class="layer-btn" onclick="setLayer('clouds_new', this)"><i data-lucide="cloud"></i> Clouds</button>
+    <button class="layer-btn" onclick="setLayer('pressure_new', this)"><i data-lucide="gauge"></i> Pressure</button>
 
     <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 25px 0;">
 
-    <div style="display:flex; justify-content: space-between; align-items: center;">
-        <span>🎯 Precision Picker</span>
-        <input type="checkbox" onchange="togglePicker(this.checked)" style="width:20px; height:20px;">
+    <div class="switch-row">
+        <span style="display:flex; align-items:center; gap:10px;"><i data-lucide="target" style="width:18px"></i> Precision Picker</span>
+        <label class="switch">
+            <input type="checkbox" onchange="togglePicker(this.checked)">
+            <span class="slider"></span>
+        </label>
     </div>
 </div>
 
 <div id="crosshair"></div>
-<div id="center-value">--</div>
+<div id="center-value">Scanning...</div>
 
 <div class="legend">
-    <div id="legend-title" style="font-size: 13px; font-weight:600; margin-bottom: 4px;">Temperature (°F)</div>
+    <div id="legend-title" style="font-size: 13px; font-weight:700; text-transform: uppercase; opacity: 0.8;">Temperature</div>
     <div class="grad-bar" id="legend-bar"></div>
-    <div class="legend-vals" id="legend-vals">
-        <span>-40°</span><span>32°</span><span>70°</span><span>100°+</span>
-    </div>
+    <div class="legend-vals" id="legend-vals"></div>
 </div>
 
 <div id="map"></div>
@@ -120,21 +133,20 @@
     const map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/dark-v11',
-        center: [-98, 38],
-        zoom: 4
+        center: [-98, 38], // Default center
+        zoom: 3
     });
 
-    // Layer metadata for legend
     const meta = {
         temp_new: { title: "Temperature", bar: "linear-gradient(to right, #821692, #208cec, #23dddd, #c2ff28, #ffb000, #ff363b)", vals: ["-40°F", "32°F", "70°F", "100°F"] },
         wind_new: { title: "Wind Speed", bar: "linear-gradient(to right, rgba(255,255,255,0), #eec6c6, #b364bc, #3f213b)", vals: ["0mph", "15mph", "35mph", "70mph+"] },
         clouds_new: { title: "Cloud Cover", bar: "linear-gradient(to right, #ffffff00, #ffffffaa, #ffffff)", vals: ["0%", "30%", "60%", "100%"] },
-        pressure_new: { title: "Sea Level Pressure", bar: "linear-gradient(to right, #0073ff, #4bd0d6, #b0f720, #f0b800, #c60000)", vals: ["940hPa", "1000hPa", "1013hPa", "1080hPa"] }
+        pressure_new: { title: "Pressure", bar: "linear-gradient(to right, #0073ff, #4bd0d6, #b0f720, #f0b800, #c60000)", vals: ["940hPa", "1000hPa", "1013hPa", "1080hPa"] }
     };
 
     map.on('load', () => {
-        // Labels & Borders Priority
-        const labelLayer = map.getStyle().layers.find(l => l.id.includes('label') || l.id.includes('admin')).id;
+        lucide.createIcons();
+        const labelId = map.getStyle().layers.find(l => l.id.includes('label') || l.id.includes('admin')).id;
 
         map.addSource('owm-source', {
             'type': 'raster',
@@ -142,25 +154,25 @@
             'tileSize': 256
         });
 
-        map.addLayer({
-            'id': 'owm-layer', 'type': 'raster', 'source': 'owm-source', 'paint': { 'raster-opacity': 0.85 }
-        }, labelLayer);
-
-        // Add Search & GPS
-        map.addControl(new MapboxGeocoder({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: true }), 'top-right');
-        map.addControl(new mapboxgl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right');
+        map.addLayer({ 'id': 'owm-layer', 'type': 'raster', 'source': 'owm-source', 'paint': { 'raster-opacity': 0.85 } }, labelId);
         
-        setLayer('temp_new'); // Init legend
+        map.addControl(new MapboxGeocoder({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: true }), 'top-right');
+        
+        // --- AUTO LOCATION LOGIC ---
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 9, speed: 1.5 });
+            }, err => console.log("User denied location or error occurred. Staying zoomed out."));
+        }
+
+        setLayer('temp_new');
     });
 
     function setLayer(id, el) {
         map.getSource('owm-source').setTiles([`https://tile.openweathermap.org/map/${id}/{z}/{x}/{y}.png?appid=${OWM_KEY}`]);
-        
-        // Update Sidebar UI
         document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
         if(el) el.classList.add('active');
 
-        // Update Legend
         const m = meta[id];
         document.getElementById('legend-title').innerText = m.title;
         document.getElementById('legend-bar').style.background = m.bar;
@@ -179,19 +191,16 @@
 
     async function updateCenterData() {
         const c = map.getCenter();
-        const activeLayer = document.querySelector('.layer-btn.active').innerText.split(' ').pop().toLowerCase();
+        const activeBtn = document.querySelector('.layer-btn.active').innerText.trim().toLowerCase();
         
         try {
             const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${c.lat}&lon=${c.lng}&units=imperial&appid=${OWM_KEY}`);
             const d = await res.json();
-            let display = `${d.name || 'Remote'}: `;
-            
-            if (activeLayer.includes('temp')) display += `${Math.round(d.main.temp)}°F`;
-            else if (activeLayer.includes('wind')) display += `${Math.round(d.wind.speed)} mph`;
-            else if (activeLayer.includes('cloud')) display += `${d.clouds.all}%`;
-            else display += `${d.main.pressure} hPa`;
-
-            document.getElementById('center-value').innerText = display;
+            let label = d.name || 'Remote';
+            let val = activeBtn.includes('temp') ? `${Math.round(d.main.temp)}°F` : 
+                      activeBtn.includes('wind') ? `${Math.round(d.wind.speed)} mph` :
+                      activeBtn.includes('cloud') ? `${d.clouds.all}%` : `${d.main.pressure} hPa`;
+            document.getElementById('center-value').innerText = `${label}: ${val}`;
         } catch(e) { document.getElementById('center-value').innerText = "Updating..."; }
     }
 </script>
