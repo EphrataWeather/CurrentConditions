@@ -1,69 +1,48 @@
-<!DOCTYPE html>
+    
+    <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Weather Map</title>
+    <title>Pro Weather Viewer</title>
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* Control Panel */
         .controls {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            width: 280px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            z-index: 1;
+            position: absolute; top: 20px; left: 20px; width: 280px;
+            background: rgba(30, 30, 30, 0.9); color: white;
+            padding: 20px; border-radius: 12px; z-index: 10;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
-
-        .layer-selector { margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px; }
-        .layer-selector label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 13px; color: #444; }
-        select { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; cursor: pointer; }
-
-        .data-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; }
-        .data-label { font-weight: 600; color: #555; }
-        .data-value { color: #000; font-family: monospace; font-size: 16px; }
-
-        /* Spinner */
-        .spinner { display: none; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 10px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .loading .spinner { display: block; }
-        .loading .data-row { opacity: 0.3; }
+        select { 
+            width: 100%; padding: 10px; margin-top: 10px; 
+            background: #444; color: white; border: none; border-radius: 5px; 
+        }
+        .instruction { font-size: 11px; color: #aaa; margin-top: 10px; }
+        .mapboxgl-popup-content { color: #222; font-weight: bold; padding: 15px; }
     </style>
 </head>
 <body>
 
-<div class="controls" id="weather-panel">
-    <h2 id="city-name" style="margin:0 0 10px 0; font-size: 18px;">Click Map for Data</h2>
-    
-    <div id="loader" class="spinner"></div>
-
-    <div class="data-row"><span class="data-label">Temp:</span> <span id="temp" class="data-value">--</span></div>
-    <div class="data-row"><span class="data-label">Wind:</span> <span id="wind" class="data-value">--</span></div>
-    <div class="data-row"><span class="data-label">Apparent:</span> <span id="feels-like" class="data-value">--</span></div>
-    
-    <div class="layer-selector">
-        <label for="weather-layer">Map Overlay:</label>
-        <select id="weather-layer" onchange="changeLayer(this.value)">
-            <option value="precipitation_new">Rain Radar</option>
-            <option value="temp_new">Temperature Map</option>
-            <option value="wind_new">Wind Speed</option>
-            <option value="pressure_new">Sea Level Pressure</option>
-            <option value="clouds_new">Cloud Cover</option>
-        </select>
-    </div>
+<div class="controls">
+    <h3 style="margin:0">Weather Layers</h3>
+    <select id="layer-picker" onchange="updateWeatherLayer(this.value)">
+        <option value="rainviewer">Live Rain Radar (RainViewer)</option>
+        <option value="temp_new">Temperature (OWM)</option>
+        <option value="wind_new">Wind Speed (OWM)</option>
+        <option value="clouds_new">Cloud Cover (OWM)</option>
+        <option value="pressure_new">Pressure (OWM)</option>
+    </select>
+    <p class="instruction">Double-click / Double-tap any area to get exact weather values.</p>
 </div>
 
 <div id="map"></div>
 
 <script>
+
     const MAPBOX_TOKEN = 'pk.eyJ1IjoiZ3RnMDExNiIsImEiOiJjbWxsODV6NXAwNThmM2ZwdWlkYm0xNjFlIn0.vI186twXYzY45nnuV5FucQ';
     const OWM_KEY = '5906af06cdd57431ce881975e794e337';
     
@@ -73,54 +52,88 @@
         container: 'map',
         style: 'mapbox://styles/mapbox/dark-v11',
         center: [-98, 38],
-        zoom: 4
+        zoom: 4,
+        doubleClickZoom: false // Disabled so we can use dblclick for data
     });
 
-    map.on('load', () => {
-        // Initial Layer (Precipitation)
-        map.addSource('owm-source', {
+    let currentLayerId = 'rainviewer';
+
+    map.on('load', async () => {
+        // 1. FIND THE TOP-MOST LABEL LAYER TO KEEP DATA BENEATH IT
+        const layers = map.getStyle().layers;
+        let firstLabelId;
+        for (const layer of layers) {
+            if (layer.type === 'symbol' || layer.id.includes('boundary') || layer.id.includes('label')) {
+                firstLabelId = layer.id;
+                break;
+            }
+        }
+
+        // 2. GET RAINVIEWER LATEST DATA
+        const rvResponse = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+        const rvData = await rvResponse.json();
+        const latestRadar = rvData.radar.past[rvData.radar.past.length - 1].path;
+
+        // 3. ADD SOURCES
+        map.addSource('weather-source', {
             'type': 'raster',
-            'tiles': [`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`],
+            'tiles': [`https://tile.rainviewer.com${latestRadar}/256/{z}/{x}/{y}/2/1_1.png`],
             'tileSize': 256
         });
 
+        // 4. ADD LAYER BENEATH LABELS
         map.addLayer({
-            'id': 'owm-layer',
+            'id': 'weather-layer',
             'type': 'raster',
-            'source': 'owm-source',
-            'paint': { 'raster-opacity': 0.7 }
-        });
+            'source': 'weather-source',
+            'paint': { 'raster-opacity': 0.9 } // High opacity as requested
+        }, firstLabelId);
     });
 
-    // logic to swap tiles
-    function changeLayer(layerName) {
-        const source = map.getSource('owm-source');
-        if (source) {
-            const newTileUrl = `https://tile.openweathermap.org/map/${layerName}/{z}/{x}/{y}.png?appid=${OWM_KEY}`;
-            source.setTiles([newTileUrl]);
+    async function updateWeatherLayer(val) {
+        let newUrl;
+        if (val === 'rainviewer') {
+            const rvResponse = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+            const rvData = await rvResponse.json();
+            const latestRadar = rvData.radar.past[rvData.radar.past.length - 1].path;
+            newUrl = `https://tile.rainviewer.com${latestRadar}/256/{z}/{x}/{y}/2/1_1.png`;
+        } else {
+            newUrl = `https://tile.openweathermap.org/map/${val}/{z}/{x}/{y}.png?appid=${OWM_KEY}`;
         }
+        
+        map.getSource('weather-source').setTiles([newUrl]);
     }
 
-    // fetch data on click
-    map.on('click', async (e) => {
-        const panel = document.getElementById('weather-panel');
-        panel.classList.add('loading');
+    // 5. DOUBLE CLICK PICKER
+    map.on('dblclick', async (e) => {
+        const { lng, lat } = e.lngLat;
         
+        // Show a temporary "Loading..." popup
+        const popup = new mapboxgl.Popup()
+            .setLngLat([lng, lat])
+            .setHTML("Fetching data...")
+            .addTo(map);
+
         try {
-            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${e.lngLat.lat}&lon=${e.lngLat.lng}&units=imperial&appid=${OWM_KEY}`;
+            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=imperial&appid=${OWM_KEY}`;
             const res = await fetch(url);
             const data = await res.json();
-            
-            document.getElementById('temp').innerText = `${Math.round(data.main.temp)}°F`;
-            document.getElementById('wind').innerText = `${Math.round(data.wind.speed)} mph`;
-            document.getElementById('feels-like').innerText = `${Math.round(data.main.feels_like)}°F`;
-            document.getElementById('city-name').innerText = data.name || "Selected Area";
+
+            const content = `
+                <div style="font-size:14px">
+                    <strong style="font-size:16px">${data.name || 'Current Area'}</strong><br>
+                    🌡️ Temp: ${Math.round(data.main.temp)}°F<br>
+                    💧 Humidity: ${data.main.humidity}%<br>
+                    🌬️ Wind: ${Math.round(data.wind.speed)} mph<br>
+                    ☁️ Clouds: ${data.clouds.all}%
+                </div>
+            `;
+            popup.setHTML(content);
         } catch (err) {
-            console.error(err);
-        } finally {
-            panel.classList.remove('loading');
+            popup.setHTML("Error loading data.");
         }
     });
+
 </script>
 </body>
 </html>
